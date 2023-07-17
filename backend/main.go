@@ -121,7 +121,7 @@ func main() {
 
 	go func() {
 		for {
-			res, _ := json.Marshal(fmt.Sprintf("pavle server: %v", time.Now().Unix()))
+			res, _ := json.Marshal(fmt.Sprintf("server: %v", time.Now().Unix()))
 			node.Publish("chat", res)
 			time.Sleep(10 * time.Second)
 		}

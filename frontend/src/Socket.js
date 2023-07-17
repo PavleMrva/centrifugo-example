@@ -2,6 +2,37 @@ import React, { useState, useEffect, useRef } from 'react';
 import {Centrifuge} from 'centrifuge';
 import './Socket.css'
 
+async function getToken() {
+    const localStorageToken = localStorage.getItem("jwt_token");
+    console.log("TOKEN:", localStorageToken)
+    if (localStorageToken) {
+        return localStorageToken;
+    }
+
+    const url = new URL('http://localhost:8000/jwt');
+
+    const headers = new Headers();
+    headers.append('Content-Type', 'application/json');
+    headers.append('x-portal-host', 'slotsio.xyz');
+    headers.append('x-igp-session', '64478519e600d981a116ac30');
+
+    const response = await fetch(url, {
+        method: 'GET',
+        headers,
+    });
+
+    if (!response.ok) {
+        // Any other error thrown will result into token refresh re-attempts.
+        throw new Error(`Unexpected status code ${response.status}`);
+    }
+
+    const {data} = await response.json();
+
+    localStorage.setItem("jwt_token", data.token);
+
+    return data.token
+}
+
 async function getHostBasedChannels(channels) {
     const params = new URLSearchParams();
     channels.forEach((chan) => params.append('channels[]', chan));
@@ -12,6 +43,7 @@ async function getHostBasedChannels(channels) {
     const headers = new Headers();
     headers.append('Content-Type', 'application/json');
     headers.append('x-portal-host', 'slotsio.xyz');
+    headers.append('token', localStorage.getItem("jwt_token"));
 
     const response = await fetch(url, {
         method: 'GET',
@@ -29,16 +61,24 @@ const Socket = () => {
 
     useEffect( () => {
         async function connect() {
+            const token = await getToken();
+
             centrifugeRef.current = new Centrifuge('ws://localhost:8000/connection/websocket', {
-                token: "blabla"
+                token,
+                getToken,
             });
 
             centrifugeRef.current.on('connected', function(ctx){
                 setMessages((prevMessages) => [...prevMessages, 'Connected over ' + ctx.transport]);
             });
 
+
             const channels = ['chat', 'notifications'];
             const {data: hostBasedChannels} = await getHostBasedChannels(channels);
+
+            if (!hostBasedChannels) {
+                return;
+            }
 
             hostBasedChannels.forEach((chan) => {
                 const subscription = centrifugeRef.current.newSubscription(chan);
